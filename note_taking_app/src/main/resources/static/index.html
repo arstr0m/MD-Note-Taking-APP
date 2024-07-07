@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <title>Note Taking and Grammar Check App</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        .container {
+            max-width: 600px;
+            margin: auto;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        .form-group input, .form-group textarea {
+            width: 100%;
+            padding: 8px;
+            box-sizing: border-box;
+        }
+        .form-group button {
+            padding: 10px 15px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 10px;
+        }
+        ul {
+            display: flex;
+            flex: wrap;
+            list-style-type: none;
+            text-decoration: none;
+            justify-content: space-between;
+            align-items: middle;
+        }
+        li{
+            text-decoration: none;
+            margin: 2px;
+        }
+        a {
+            text-decoration: none;
+          }
+
+        .form-group button{
+            display:flex;
+            flex-direction: row;
+            margin: 10px 0;
+        }
+        h2{
+            text-align: center;
+        }
+        .download_button{
+            margin: 3px;
+            background: #000000;
+            color: #FFFFFF;
+        }
+        .created-note-result{
+            display:flex;
+            flex:wrap;
+            justify-content:center;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <header>
+        <h1>Note-Taking and Grammar Check App</h1>
+        <div>
+            <ul>
+                <li><a href="#create_note">Create Note</a></li>
+                <li><a href="#by_id">Search Note by ID</a></li>
+                <li><a href="#by_title">Search Note by Title</a></li>
+                <li><a href="#upload">Upload</a></li>
+                <li><a href="#download">Download</a></li>
+            </ul>
+        </div>
+    </header>
+    <div class="form-group" id="create_note">
+        <h2>Create a Note</h2>
+        <label for="title">Title for Note:</label>
+        <input id="title" placeholder="Title of your note" type="text"/>
+        <label for="text">Text for Note:</label>
+        <textarea id="text" placeholder="Text" required rows="10"></textarea>
+        <button onclick="checkGrammar()">Check Grammar</button>
+        <button onclick="createNote()" style="background-color:#BF40BF;">Create Note</button>
+    </div>
+    <div class="result" id="created-note-result"></div>
+    <div id="created-html"></div>
+
+    <div class="form-group" id="by_id">
+        <h2>Find a note by its ID</h2>
+        <label for="noteId">Note ID to Render:</label>
+        <input id="noteId" type="text">
+        <button onclick="renderNote()">Render Note</button>
+    </div>
+    <div class="result" id="note-result"></div>
+    <div class="form-group" id="by_title">
+        <h2>Find a note by its title</h2>
+        <label for="find_title">Title of the note:</label>
+        <input id="find_title" type="text">
+        <button onclick="findByTitle()">Render Note</button>
+    </div>
+    <div class="result" id="note-result-title"></div>
+    <div class="form-group" id="upload">
+        <h2>Upload</h2>
+        <label for="fileInput">Upload your markdown</label>
+        <input type="file" id="fileInput" accept=".md" />
+        <button onclick="uploadFile()">Upload</button>
+        <p id="result"></p>
+    </div>
+    <div class="form-group" id="download">
+        <label for="fileId">Enter file ID to download</label>
+        <input type="text" id="fileId" placeholder="Enter file ID to download" />
+        <button onclick="downloadFile()">Download</button>
+        <p id="downloadResult"></p>
+    </div>
+
+</div>
+
+<script>
+    function createNote()
+    {
+        var text = document.getElementById('text').value
+        const result = document.getElementById('created-note-result')
+        const title = document.getElementById('title').value
+        const html = document.getElementById('created-html')
+        const url = '/notes/save_note'
+        const payload = { markdown: text, title: title };
+        if(!title){
+            result.innerText = 'Title must not be empty'
+            return
+        }
+        if(!text){
+            result.innerText = 'Text must not be empty'
+            return
+        }
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        })
+        .then(response =>  response.json()
+        )
+        .then(data => {
+            const note_id = data.note_id
+            result.innerText = 'Note created id #' + note_id
+            createDownloadButton(data);
+
+        })
+        .catch(error => {
+            document.getElementById('created-note-result').innerText = 'Error: ' + error
+        });
+    }
+    function createDownloadButton(noteId) {
+
+        let existingButton = document.getElementById('download-button');
+        if (existingButton) {
+            existingButton.remove();
+        }
+
+        id = noteId.note_id
+        const button = document.createElement('button')
+        button.id = 'download-button' + id
+        button.classList.add('download_button')
+        button.innerText = 'Download Markdown'
+        button.addEventListener('click', () => {
+            toDownload(noteId);
+        });
+
+
+        const result = document.getElementById('created-note-result')
+        result.appendChild(button)
+      }
+
+      function getHTML(text) {
+        const convert = '/c/convert';
+        const payload = { markdown: text };
+        try {
+        const response = fetch(convert, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+
+        const data = response.text();
+        return data;
+
+    } catch (error) {
+        console.error('Error:', error);
+        return 'Error: ' + error.message;
+    }
+    }
+
+
+    function checkGrammar() {
+        const text = document.getElementById('text').value;
+        const url = '/n/grammar_check';
+        const payload = { text: text };
+
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        })
+        .then(response => response.text())
+        .then(data => {
+            document.getElementById('created-note-result').innerText = data;
+        })
+        .catch(error => {
+            document.getElementById('created-note-result').innerText = 'Error: ' + error;
+        })
+    }
+
+    function renderNote() {
+        const noteId = document.getElementById('noteId').value;
+        const url = `/notes/render_note?note_id=${noteId}`;
+
+        fetch(url, {
+            method: 'GET',
+        })
+        .then(response => response.text())
+        .then(data => {
+            document.getElementById('note-result').innerText = data;
+        })
+        .catch(error => {
+            document.getElementById('note-result').innerText = 'Error: ' + error;
+        });
+    }
+    function findByTitle() {
+        const by_title = document.getElementById('find_title').value
+        const url = `notes/render_note_title?title=${by_title}`
+
+        fetch(url, {
+            method: 'GET',
+        })
+        .then(response => response.text())
+        .then(data => {
+            document.getElementById('note-result-title').innerText = data;
+        })
+        .catch(error => {
+            document.getElementById('note-result-title').innerText = 'Error: ' + error;
+        });
+    }
+
+    function uploadFile() {
+            const fileInput = document.getElementById('fileInput');
+            const result = document.getElementById('result');
+
+            if (!fileInput.files.length) {
+                result.textContent = 'Please select a file!';
+                return;
+            }
+
+            const file = fileInput.files[0];
+            const formData = new FormData();
+            formData.append('file', file);
+
+            fetch('/u/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.text())
+            .then(data => {
+                result.textContent = data;
+            })
+            .catch(error => {
+                result.textContent = 'Error: ' + error;
+            });
+        }
+    function toDownload(data) {
+    const file_content = data.markdown;
+    const text_name = data.title;
+    if (!file_content || !text_name) {
+        return;
+    }
+    fetch(`/u/generate_md?text=${encodeURIComponent(file_content)}&name=${encodeURIComponent(text_name)}`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.blob();
+        })
+        .then(blob => {
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+            a.download = `${text_name}.md`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.getElementById('downloadResult').textContent = 'File downloaded successfully!'; // Ensure downloadResult exists
+        })
+        .catch(error => {
+            document.getElementById('downloadResult').textContent = 'Error: ' + error;
+        });
+}
+
+     function downloadFile() {
+            const fileId = document.getElementById('fileId').value;
+            const downloadResult = document.getElementById('downloadResult');
+
+            if (!fileId) {
+                downloadResult.textContent = 'Please enter a file ID!';
+                return;
+            }
+
+            fetch(`/u/download/${fileId}`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.blob();
+            })
+            .then(blob => {
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = 'document.md';
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                downloadResult.textContent = 'File downloaded successfully!';
+            })
+            .catch(error => {
+                downloadResult.textContent = 'Error: ' + error;
+            });
+        }
+</script>
+</body>
+</html>
