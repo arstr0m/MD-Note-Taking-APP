@@ -4,6 +4,7 @@ import com.note_taking_app.note_taking_app.models.Note;
 import com.note_taking_app.note_taking_app.repository.NoteRepo;
 import com.note_taking_app.note_taking_app.utilities.MarkdownConverter;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -15,13 +16,16 @@ import java.util.Optional;
 @RestController
 @RequestMapping("/notes")
 public class NotesController {
-
-    private final NoteRepo noteRepository;
-
     @Autowired
     public NotesController(NoteRepo noteRepository) {
         this.noteRepository = noteRepository;
     }
+    @Autowired
+    private final NoteRepo noteRepository;
+
+    @Autowired
+    private RedisTemplate<String, String> redisTemplate;
+
 
     @PostMapping("/save_note")
     public ResponseEntity<Note> saveNote(@RequestBody Map<String, String> payload) {
@@ -44,22 +48,42 @@ public class NotesController {
             e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(savedNote);
         }
-        
+
     }
+
+
 
     @GetMapping("/render_note")
     public ResponseEntity<String> renderNote(@RequestParam("note_id") String noteId) {
+        String cachedNote = (String) redisTemplate.opsForValue().get(noteId);
+        if (cachedNote != null) {
+            return ResponseEntity.ok(cachedNote);
+        }
+
         Optional<Note> note = noteRepository.findById(noteId);
-        System.out.printf(noteId);
-        return note.map(value -> ResponseEntity.ok(value.getHtml())).orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).body("Note not found"));
+        if (note.isPresent()) {
+            String htmlContent = note.get().getHtml();
+            redisTemplate.opsForValue().set(noteId, htmlContent);
+            return ResponseEntity.ok(htmlContent);
+        } else {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Note not found");
+        }
     }
 
     @GetMapping("/render_note_title")
     public ResponseEntity<String> renderNoteByTitle(@RequestParam("title") String title) {
+        String cachedNote = (String) redisTemplate.opsForValue().get(title);
+        if (cachedNote != null) {
+            return ResponseEntity.ok(cachedNote);
+        }
         Optional<Note> note = noteRepository.findByTitle(title);
-        System.out.println(title);
-        return note.map(value -> ResponseEntity.ok(value.getHtml()))
-                .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).body("Note not found"));
+        if (note.isPresent()){
+            String htmlContent = note.get().getHtml();
+            redisTemplate.opsForValue().set(title, htmlContent);
+            return ResponseEntity.ok(htmlContent);
+        } else {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Note not found");
+        }
     }
 
 
